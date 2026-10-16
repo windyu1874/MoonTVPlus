@@ -1,0 +1,40 @@
+name: 构建 Cloudflare 部署包
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BUILD_TARGET: cloudflare
+      NODE_ENV: production
+      NEXT_PUBLIC_STORAGE_TYPE: d1
+      NEXT_PUBLIC_SITE_NAME: MoonTVPlus
+      NEXT_TELEMETRY_DISABLED: '1'
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: 安装固定依赖
+        run: pnpm install --frozen-lockfile
+      - name: 检查类型
+        run: pnpm run typecheck
+      - name: 生成 Cloudflare 运行包
+        run: pnpm run build:cloudflare
+      - name: 打包运行产物
+        run: tar -czf cloudflare-package.tar.gz .open-next
+      - name: 保存运行产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-package
+          path: cloudflare-package.tar.gz
+          retention-days: 7
