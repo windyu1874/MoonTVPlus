@@ -119,6 +119,10 @@ export function refineConfig(adminConfig: AdminConfig): AdminConfig {
       existingSource.api = site.api;
       existingSource.detail = site.detail;
       existingSource.from = 'config';
+      // 配置文件中的 proxyMode 也应生效（上游仅覆盖 name/api/detail 会丢失该字段）
+      if (typeof site.proxyMode === 'boolean') {
+        existingSource.proxyMode = site.proxyMode;
+      }
     } else {
       // 如果不存在，创建新条目
       currentApiSites.set(key, {
@@ -128,6 +132,7 @@ export function refineConfig(adminConfig: AdminConfig): AdminConfig {
         detail: site.detail,
         from: 'config',
         disabled: false,
+        proxyMode: typeof site.proxyMode === 'boolean' ? site.proxyMode : undefined,
       });
     }
   });
