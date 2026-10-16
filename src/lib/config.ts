@@ -119,10 +119,11 @@ export function refineConfig(adminConfig: AdminConfig): AdminConfig {
       existingSource.api = site.api;
       existingSource.detail = site.detail;
       existingSource.from = 'config';
-      // 配置文件中的 proxyMode 也应生效（上游仅覆盖 name/api/detail 会丢失该字段）
-      if (typeof site.proxyMode === 'boolean') {
-        existingSource.proxyMode = site.proxyMode;
-      }
+      // 配置文件中的 proxyMode 也应生效（上游仅覆盖 name/api/detail 会丢失该字段）。
+      // 以配置文件为准：显式 true/false 都写入，未提供则视为关闭，
+      // 否则后台关闭代理后会被残留的 true 覆盖回开启状态。
+      existingSource.proxyMode =
+        typeof site.proxyMode === 'boolean' ? site.proxyMode : false;
     } else {
       // 如果不存在，创建新条目
       currentApiSites.set(key, {
