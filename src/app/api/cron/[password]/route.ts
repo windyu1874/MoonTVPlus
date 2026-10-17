@@ -154,10 +154,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { password: string } }
 ) {
-  console.log(request.url);
-
-  const cronPassword = process.env.CRON_PASSWORD || 'mtvpls';
-  if (params.password !== cronPassword) {
+  // 本路径不走登录中间件，口令就是唯一凭证：
+  // 未配置 CRON_PASSWORD 时直接关闭该入口，绝不回落到上游公开默认口令 'mtvpls'。
+  const cronPassword = process.env.CRON_PASSWORD;
+  if (!cronPassword || params.password !== cronPassword) {
     return NextResponse.json(
       { success: false, message: 'Unauthorized' },
       { status: 401 }

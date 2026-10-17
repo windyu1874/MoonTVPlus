@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { invalidateUserAccessTokens } from '@/lib/access-token-invalidation';
+import { resolveAdminAccess } from '@/lib/admin-auth';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { db, getStorage } from '@/lib/db';
@@ -38,6 +39,57 @@ const ACTIONS = [
   'updateUserGroups',
   'batchUpdateUserGroups',
 ] as const;
+
+export async function GET(request: NextRequest) {
+  const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
+  if (storageType === 'localstorage') {
+    return NextResponse.json(
+      { error: '不支持本地存储进行管理员配置' },
+      { status: 400 }
+    );
+  }
+
+  const access = await resolveAdminAccess(request);
+  if (!access.ok) {
+    return NextResponse.json({ error: '权限不足' }, { status: 401 });
+  }
+
+  try {
+    // 兼容上游管理员面板的 GET 拉取用户列表与用户组；
+    // 此前该路由只实现了 POST，前端调用会直接 405。
+    const adminConfig = await getConfig();
+
+    if (!adminConfig.UserConfig.Tags) {
+      adminConfig.UserConfig.Tags = [];
+    }
+
+    const { users: v2Users } = await db.getUserListV2(0, 10000, process.env.USERNAME);
+    const users = (v2Users || []).map((user) => ({
+      username: user.username,
+      role:
+        user.username === process.env.USERNAME ? 'owner' : user.role,
+      banned: Boolean(user.banned),
+      tags: user.tags,
+      enabledApis: user.enabledApis,
+      created_at: user.created_at,
+    }));
+
+    return NextResponse.json(
+      {
+        Role: access.isOwner ? 'owner' : 'admin',
+        Users: users,
+        Tags: adminConfig.UserConfig.Tags,
+      },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
+  } catch (error) {
+    console.error('获取用户列表失败:', error);
+    return NextResponse.json(
+      { error: '获取用户列表失败' },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(request: NextRequest) {
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';

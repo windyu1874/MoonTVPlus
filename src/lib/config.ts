@@ -1329,8 +1329,17 @@ export async function getAvailableApiSites(
     }
   }
 
-  // 如果都没有配置，返回所有可用的 API 站点
-  return allApiSites;
+  // 兜底：只有站长和普通用户能看到全部启用源。
+  // 此前这里对任何用户都直接返回 allApiSites，管理员即使被配置了
+  // 受限 enabledApis 也会绕过限制（例如特殊源隔离失效）。
+  const isOwner = !process.env.USERNAME || user === process.env.USERNAME;
+  if (isOwner || userInfoV2.role === 'user') {
+    return allApiSites;
+  }
+
+  // 管理员/站长但没显式配置来源时保持为空，避免越权放宽，
+  // 需要在后台用户或用户组里明确分配可用源。
+  return [];
 }
 
 export async function setCachedConfig(config: AdminConfig) {

@@ -58,7 +58,12 @@ const intervalId = setInterval(() => {
 
 // 执行 cron 任务的函数
 function executeCronJob() {
-  const cronPassword = process.env.CRON_PASSWORD || 'mtvpls';
+  // 未配置 CRON_PASSWORD 就不触发：接口端同样会拒绝默认口令。
+  const cronPassword = process.env.CRON_PASSWORD;
+  if (!cronPassword) {
+    console.log('CRON_PASSWORD 未配置，跳过定时任务');
+    return;
+  }
   const cronUrl = `http://${process.env.HOSTNAME || 'localhost'}:${process.env.PORT || 3000
     }/api/cron/${cronPassword}`;
 
