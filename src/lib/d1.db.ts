@@ -57,12 +57,28 @@ export class D1Storage implements IStorage {
   }
 
   private async ensureMangaShelfColumns(): Promise<void> {
-    const statements = [
-      'ALTER TABLE manga_shelf ADD COLUMN latest_chapter_id TEXT',
-      'ALTER TABLE manga_shelf ADD COLUMN latest_chapter_name TEXT',
-      'ALTER TABLE manga_shelf ADD COLUMN latest_chapter_count INTEGER',
-      'ALTER TABLE manga_shelf ADD COLUMN unread_chapter_count INTEGER',
+    // 先查现有列，已存在就跳过，避免每个 Worker 实例都执行必然失败的 ALTER TABLE
+    // （免费版 Workers 每次请求只有 10ms CPU，4 次无一成功的 DDL 足以触发超限）
+    const wanted: { col: string; ddl: string }[] = [
+      { col: 'latest_chapter_id', ddl: 'ALTER TABLE manga_shelf ADD COLUMN latest_chapter_id TEXT' },
+      { col: 'latest_chapter_name', ddl: 'ALTER TABLE manga_shelf ADD COLUMN latest_chapter_name TEXT' },
+      { col: 'latest_chapter_count', ddl: 'ALTER TABLE manga_shelf ADD COLUMN latest_chapter_count INTEGER' },
+      { col: 'unread_chapter_count', ddl: 'ALTER TABLE manga_shelf ADD COLUMN unread_chapter_count INTEGER' },
     ];
+    let existing = new Set<string>();
+    try {
+      const info = await this.db.prepare('PRAGMA table_info(manga_shelf)').all();
+      const rows: any[] = (info as any)?.results ?? (info as any) ?? [];
+      existing = new Set(rows.map((r: any) => String(r.name)));
+      if (existing.size === 0) {
+        // 表可能不存在，无需补列
+        return;
+      }
+    } catch {
+      // 查询失败则退回原有逐条尝试逻辑
+    }
+    const statements = wanted.filter((w) => !existing.has(w.col)).map((w) => w.ddl);
+    if (statements.length === 0) return;
 
     for (const statement of statements) {
       try {
